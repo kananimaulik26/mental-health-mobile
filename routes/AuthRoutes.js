@@ -7,6 +7,7 @@ router.post('/confirm',AuthController.ConfirmSignUp);
 router.post('/signin',AuthController.SignIn);
 router.post('/resend-code',AuthController.ResendVerificationCode);
 router.post('/logout',AuthController.Logout);
+router.post('/update-user',AuthController.UpdateUser);
 
 
 

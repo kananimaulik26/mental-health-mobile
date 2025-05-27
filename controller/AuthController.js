@@ -15,10 +15,16 @@ const SignUp = async (req, res) => {
 		const {
 			email,
 			password,
+			firstname,
+			lastname
 		} = req.body;
 
 		if (!email || !password) {
 			return res.status(400).json({ message: 'Email and password are required.' });
+		}
+
+		if(!firstname || !lastname){
+			return res.status(400).json({message:"FirstName and LastName are required."})
 		}
 
 		const params = {
@@ -26,6 +32,16 @@ const SignUp = async (req, res) => {
 			Username: email,
 			Password: password,
 			SecretHash: generateSecretHash(email, process.env.COGNITO_CLIENT_ID, process.env.COGNITO_CLIENT_SECRET),
+			UserAttributes:[
+				{
+					Name:'given_name',
+					Value:firstname
+				},
+				{
+					Name:'family_name',
+					Value:lastname
+				}
+			]
 		};
 		await cognito.signUp(params).promise();
 
@@ -166,10 +182,68 @@ const Logout = async (req, res) => {
 	}
 };
 
+const UpdateUser = async (req, res) => {
+	try {
+	    const {
+			accessToken,
+			profile,
+			gender,
+			phone_number,
+			nickname,
+			language,
+			slug,
+			status,
+			country,
+			city,
+			school,
+			mode,
+			district,
+			age,
+			source
+		  } = req.body;
+  
+	  if (!accessToken) {
+		return res.status(400).json({ message: 'Access token is required.' });
+	  }
+  
+	  const attributes = [];
+ 
+	  if (profile) attributes.push({ Name: 'profile', Value: profile });
+	  if (gender) attributes.push({ Name: 'gender', Value: gender });
+	  if (phone_number) attributes.push({ Name: 'phone_number', Value: phone_number });
+	  if (nickname) attributes.push({ Name: 'nickname', Value: nickname });
+  
+	  // Custom fields
+	  if (language) attributes.push({ Name: 'custom:language', Value: language });
+	  if (slug) attributes.push({ Name: 'custom:slug', Value: slug });
+	  if (status) attributes.push({ Name: 'custom:status', Value: status });
+	  if (country) attributes.push({ Name: 'custom:country', Value: country });
+	  if (city) attributes.push({ Name: 'custom:city', Value: city });
+	  if (school) attributes.push({ Name: 'custom:school', Value: school });
+	  if (mode) attributes.push({ Name: 'custom:mode', Value: mode });
+	  if (district) attributes.push({ Name: 'custom:district', Value: district });
+	  if (age) attributes.push({ Name: 'custom:age', Value: age });
+	  if (source) attributes.push({ Name: 'custom:source', Value: source });
+  
+	  const params = {
+		AccessToken: accessToken,
+		UserAttributes: attributes
+	  };
+  
+	  await cognito.updateUserAttributes(params).promise();
+  
+	  res.status(200).json({ message: 'User attributes updated successfully.' });
+	} catch (error) {
+	  console.error('Update user error:', error);
+	  res.status(500).json({ error: error.message || 'Internal server error' });
+	}
+  };
+
 module.exports = {
 	SignUp,
 	ConfirmSignUp,
 	ResendVerificationCode,
 	SignIn,
-	Logout
+	Logout,
+	UpdateUser
 };
