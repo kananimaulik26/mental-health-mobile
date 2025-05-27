@@ -1,0 +1,22 @@
+{
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.817.0",
+    "amazon-cognito-identity-js": "^6.3.15",
+    "aws-sdk": "^2.1692.0",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "nodemon": "^3.1.10",
+    "uuid": "^11.1.0"
+  },
+  "name": "mental-health-mobile",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
