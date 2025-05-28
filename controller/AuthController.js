@@ -5,6 +5,9 @@ const { Upload } = require('@aws-sdk/lib-storage');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid');
+const { default: axios } = require('axios');
+const Joi = require("joi");
+const jwt = require("jsonwebtoken");
 require('dotenv').config();
 
 AWS.config.update({
@@ -24,40 +27,90 @@ const s3Client = new S3Client({
 
 const cognito = new AWS.CognitoIdentityServiceProvider();
 
+const userSchema = Joi.object({
+	email:Joi.string().email().required(),
+	password:Joi.string().required(),
+	gender: Joi.string().valid("male", "female", "other").required(),
+	country: Joi.string().required(),
+	city: Joi.string().required(),
+	user_type: Joi.string().required(),
+	school: Joi.string().required(),
+	mode: Joi.string().required(),
+	district: Joi.string().required(),
+	age: Joi.number().integer().min(0).required(),
+	source: Joi.string().required(),
+  });
+
 const SignUp = async (req, res) => {
 	try {
-		const {
-			email,
-			password,
-			firstname,
-			lastname
-		} = req.body;
-
-		if (!email || !password) {
-			return res.status(400).json({ message: 'Email and password are required.' });
-		}
-
-		if(!firstname || !lastname){
-			return res.status(400).json({message:"FirstName and LastName are required."})
-		}
+		const { error, value } = userSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
 
 		const params = {
 			ClientId: process.env.COGNITO_CLIENT_ID,
-			Username: email,
-			Password: password,
-			SecretHash: generateSecretHash(email, process.env.COGNITO_CLIENT_ID, process.env.COGNITO_CLIENT_SECRET),
+			Username: value.email,
+			Password: value.password,
+			SecretHash: generateSecretHash(value.email, process.env.COGNITO_CLIENT_ID, process.env.COGNITO_CLIENT_SECRET),
 			UserAttributes:[
 				{
-					Name:'given_name',
-					Value:firstname
+					Name:'custom:mode',
+					Value:value.mode
 				},
 				{
-					Name:'family_name',
-					Value:lastname
+					Name:'custom:age',
+					Value:String(value.age)
+				},
+				{
+					Name:'gender',
+					Value:value.gender
+				},
+				{
+					Name:'custom:country',
+					Value:value.country
+				},
+				{
+					Name:'custom:city',
+					Value:value.city
+				},
+				{
+					Name:'custom:school',
+					Value:value.school
+				},
+				{
+					Name:'custom:district',
+					Value:value.district
+				},
+				{
+					Name:'custom:user_type',
+					Value:value.user_type
+				},
+				{
+					Name:'custom:source',
+					Value:value.source
 				}
 			]
 		};
-		await cognito.signUp(params).promise();
+		const { UserSub } = await cognito.signUp(params).promise();
+		const payload = {
+			user_id:UserSub,
+			sex:value.gender,
+			country:value.country,
+			city:value.city,
+			user_type:value.user_type,
+			school:value.school,
+			mode:value.mode,
+			district:value.district,
+			age:value.age,
+			source:value.source
+		}
+
+		try {
+			const newUser = await axios.post(`${process.env.MENTAL_HEALTH_LIVE_URL}/user/createuser`,payload);
+		} catch (error) {
+			console.log("Error to create user in mental health:",error)
+		}
 
 		res.status(200).json({ message: 'Signup successful. Verification code sent to email.' });
 	} catch (error) {
@@ -201,13 +254,9 @@ const UpdateUser = async (req, res) => {
 	    const {
 			accessToken,
 			gender,
-			phone_number,
-			nickname,
-			language,
-			slug,
-			status,
 			country,
 			city,
+			user_type,
 			school,
 			mode,
 			district,
@@ -241,13 +290,8 @@ const UpdateUser = async (req, res) => {
 		}
 
 		if (gender) attributes.push({ Name: 'gender', Value: gender });
-		if (phone_number) attributes.push({ Name: 'phone_number', Value: phone_number });
-		if (nickname) attributes.push({ Name: 'nickname', Value: nickname });
 
 		// Custom fields
-		if (language) attributes.push({ Name: 'custom:language', Value: language });
-		if (slug) attributes.push({ Name: 'custom:slug', Value: slug });
-		if (status) attributes.push({ Name: 'custom:status', Value: status });
 		if (country) attributes.push({ Name: 'custom:country', Value: country });
 		if (city) attributes.push({ Name: 'custom:city', Value: city });
 		if (school) attributes.push({ Name: 'custom:school', Value: school });
@@ -255,13 +299,38 @@ const UpdateUser = async (req, res) => {
 		if (district) attributes.push({ Name: 'custom:district', Value: district });
 		if (age) attributes.push({ Name: 'custom:age', Value: age });
 		if (source) attributes.push({ Name: 'custom:source', Value: source });
+		if(user_type) attributes.push({Name:'custom:user_type', Value:user_type})
 
 		const params = {
 			AccessToken: accessToken,
 			UserAttributes: attributes
 		};
 
-		await cognito.updateUserAttributes(params).promise();
+		 await cognito.updateUserAttributes(params).promise();
+
+		 const { Username } = await cognito.getUser({ AccessToken: accessToken }).promise();
+		 const payload = {
+			sex:gender,
+			country:country,
+			city:city,
+			user_type:user_type,
+			school:school,
+			mode:mode,
+			district:district,
+			age:age,
+			source:source
+		 }
+		 const token = jwt.sign({userId:Username},process.env.JWT_SECRET_KEY,{expiresIn:'1h'});
+
+		 try {
+			const UpdateUser = await axios.post(`${process.env.MENTAL_HEALTH_LIVE_URL}/user/editUser/${Username}`,payload,{
+				headers:{
+					Authorization: `Bearer ${token}`
+				}
+			});
+		} catch (error) {
+			console.log("Error to create user in mental health:",error)
+		}
 
 		res.status(200).json({ message: 'User attributes updated successfully.' });
 	} catch (error) {
