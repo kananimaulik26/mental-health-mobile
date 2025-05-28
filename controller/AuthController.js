@@ -1,5 +1,10 @@
 const AWS = require('aws-sdk');
 const { generateSecretHash } = require('../helper/generateSecretHash');
+const { S3Client } = require('@aws-sdk/client-s3');
+const { Upload } = require('@aws-sdk/lib-storage');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
 AWS.config.update({
@@ -7,6 +12,15 @@ AWS.config.update({
 	accessKeyId: process.env.AWS_ACCESS_KEY_ID,
 	secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
 });
+
+const s3Client = new S3Client({
+	region: process.env.AWS_REGION,
+	credentials: {
+		accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+	},
+});
+
 
 const cognito = new AWS.CognitoIdentityServiceProvider();
 
@@ -186,7 +200,6 @@ const UpdateUser = async (req, res) => {
 	try {
 	    const {
 			accessToken,
-			profile,
 			gender,
 			phone_number,
 			nickname,
@@ -200,44 +213,113 @@ const UpdateUser = async (req, res) => {
 			district,
 			age,
 			source
-		  } = req.body;
-  
-	  if (!accessToken) {
-		return res.status(400).json({ message: 'Access token is required.' });
-	  }
-  
-	  const attributes = [];
- 
-	  if (profile) attributes.push({ Name: 'profile', Value: profile });
-	  if (gender) attributes.push({ Name: 'gender', Value: gender });
-	  if (phone_number) attributes.push({ Name: 'phone_number', Value: phone_number });
-	  if (nickname) attributes.push({ Name: 'nickname', Value: nickname });
-  
-	  // Custom fields
-	  if (language) attributes.push({ Name: 'custom:language', Value: language });
-	  if (slug) attributes.push({ Name: 'custom:slug', Value: slug });
-	  if (status) attributes.push({ Name: 'custom:status', Value: status });
-	  if (country) attributes.push({ Name: 'custom:country', Value: country });
-	  if (city) attributes.push({ Name: 'custom:city', Value: city });
-	  if (school) attributes.push({ Name: 'custom:school', Value: school });
-	  if (mode) attributes.push({ Name: 'custom:mode', Value: mode });
-	  if (district) attributes.push({ Name: 'custom:district', Value: district });
-	  if (age) attributes.push({ Name: 'custom:age', Value: age });
-	  if (source) attributes.push({ Name: 'custom:source', Value: source });
-  
-	  const params = {
-		AccessToken: accessToken,
-		UserAttributes: attributes
-	  };
-  
-	  await cognito.updateUserAttributes(params).promise();
-  
-	  res.status(200).json({ message: 'User attributes updated successfully.' });
+		} = req.body;
+
+		const profileImage = req.file;
+
+		if (!accessToken) {
+			return res.status(400).json({ message: 'Access token is required.' });
+		}
+
+		const attributes = [];
+
+		if (profileImage) {
+			const key = `${uuidv4()}-${profileImage.originalname}`;
+
+
+			const upload = new Upload({
+				client: s3Client,
+				params: {
+					Bucket: process.env.AWS_BUCKET_NAME,
+					Key: key,
+					Body: profileImage.buffer,
+					ContentType: profileImage.mimetype,
+				},
+			});
+			const uploadResult = await upload.done();
+			attributes.push({ Name: 'profile', Value: key })
+		}
+
+		if (gender) attributes.push({ Name: 'gender', Value: gender });
+		if (phone_number) attributes.push({ Name: 'phone_number', Value: phone_number });
+		if (nickname) attributes.push({ Name: 'nickname', Value: nickname });
+
+		// Custom fields
+		if (language) attributes.push({ Name: 'custom:language', Value: language });
+		if (slug) attributes.push({ Name: 'custom:slug', Value: slug });
+		if (status) attributes.push({ Name: 'custom:status', Value: status });
+		if (country) attributes.push({ Name: 'custom:country', Value: country });
+		if (city) attributes.push({ Name: 'custom:city', Value: city });
+		if (school) attributes.push({ Name: 'custom:school', Value: school });
+		if (mode) attributes.push({ Name: 'custom:mode', Value: mode });
+		if (district) attributes.push({ Name: 'custom:district', Value: district });
+		if (age) attributes.push({ Name: 'custom:age', Value: age });
+		if (source) attributes.push({ Name: 'custom:source', Value: source });
+
+		const params = {
+			AccessToken: accessToken,
+			UserAttributes: attributes
+		};
+
+		await cognito.updateUserAttributes(params).promise();
+
+		res.status(200).json({ message: 'User attributes updated successfully.' });
 	} catch (error) {
-	  console.error('Update user error:', error);
-	  res.status(500).json({ error: error.message || 'Internal server error' });
+		console.error('Update user error:', error);
+		res.status(500).json({ error: error.message || 'Internal server error' });
 	}
-  };
+};
+
+
+const GetUser = async (req, res) => {
+	try {
+		const { accessToken } = req.body;
+
+		if (!accessToken) {
+			return res.status(400).json({ message: 'Access token is required.' });
+		}
+
+		const user = await cognito.getUser({ AccessToken: accessToken }).promise();
+
+		const attributes = {};
+		user.UserAttributes.forEach(attr => {
+			attributes[attr.Name] = attr.Value;
+		});
+
+		let profileUrl = null;
+		if (attributes['profile']) {
+			const key = attributes['profile'];
+
+			try {
+				const command = new GetObjectCommand({
+					Bucket: process.env.AWS_BUCKET_NAME,
+					Key: key,
+				});
+
+				profileUrl = await getSignedUrl(s3Client, command, {
+					expiresIn: 60 * 60 * 24,
+				});
+			} catch (s3Error) {
+				console.error('Error generating signed URL:', s3Error);
+				profileUrl = null;
+			}
+		}
+
+		res.status(200).json({
+			...attributes,
+			profileUrl,
+		});
+	} catch (error) {
+		console.error('Get user error:', error);
+
+		if (error.code === 'NotAuthorizedException') {
+			return res.status(401).json({ message: 'Invalid or expired access token.' });
+		}
+
+		res.status(500).json({ error: error.message || 'Internal server error' });
+	}
+};
+
 
 module.exports = {
 	SignUp,
@@ -245,5 +327,6 @@ module.exports = {
 	ResendVerificationCode,
 	SignIn,
 	Logout,
-	UpdateUser
+	UpdateUser,
+	GetUser
 };
