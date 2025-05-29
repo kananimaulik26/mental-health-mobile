@@ -30,14 +30,16 @@ const cognito = new AWS.CognitoIdentityServiceProvider();
 const userSchema = Joi.object({
 	email:Joi.string().email().required(),
 	password:Joi.string().required(),
-	gender: Joi.string().valid("male", "female", "other").required(),
-	country: Joi.string().required(),
-	city: Joi.string().required(),
-	user_type: Joi.string().required(),
-	school: Joi.string().required(),
+	firstname:Joi.string().required(),
+	lastname:Joi.string().required(),
+	gender: Joi.string().valid("male", "female", "other"),
+	country: Joi.string(),
+	city: Joi.string(),
+	user_type: Joi.string(),
+	school: Joi.string(),
 	mode: Joi.string().required(),
-	district: Joi.string().required(),
-	age: Joi.number().integer().min(0).required(),
+	district: Joi.string(),
+	age: Joi.number().integer().min(0),
 	source: Joi.string().required(),
   });
 
@@ -48,52 +50,32 @@ const SignUp = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
+	const attributes = [];
+
+	    if (value.gender) attributes.push({ Name: 'gender', Value: value.gender });
+	    if (value.firstname) attributes.push({ Name: 'given_name', Value: value.firstname });
+	    if (value.lastname) attributes.push({ Name: 'family_name', Value: value.lastname });
+		
+
+		// Custom fields
+		if (value.country) attributes.push({ Name: 'custom:country', Value: value.country });
+		if (value.city) attributes.push({ Name: 'custom:city', Value: value.city });
+		if (value.school) attributes.push({ Name: 'custom:school', Value: value.school });
+		if (value.mode) attributes.push({ Name: 'custom:mode', Value: value.mode });
+		if (value.district) attributes.push({ Name: 'custom:district', Value: value.district });
+		if (value.age) attributes.push({ Name: 'custom:age', Value: value.age });
+		if (value.source) attributes.push({ Name: 'custom:source', Value: value.source });
+		if(value.user_type) attributes.push({Name:'custom:user_type', Value: value.user_type})
+
 		const params = {
 			ClientId: process.env.COGNITO_CLIENT_ID,
 			Username: value.email,
 			Password: value.password,
 			SecretHash: generateSecretHash(value.email, process.env.COGNITO_CLIENT_ID, process.env.COGNITO_CLIENT_SECRET),
-			UserAttributes:[
-				{
-					Name:'custom:mode',
-					Value:value.mode
-				},
-				{
-					Name:'custom:age',
-					Value:String(value.age)
-				},
-				{
-					Name:'gender',
-					Value:value.gender
-				},
-				{
-					Name:'custom:country',
-					Value:value.country
-				},
-				{
-					Name:'custom:city',
-					Value:value.city
-				},
-				{
-					Name:'custom:school',
-					Value:value.school
-				},
-				{
-					Name:'custom:district',
-					Value:value.district
-				},
-				{
-					Name:'custom:user_type',
-					Value:value.user_type
-				},
-				{
-					Name:'custom:source',
-					Value:value.source
-				}
-			]
+			UserAttributes:attributes
 		};
 		const { UserSub } = await cognito.signUp(params).promise();
-		const payload = {
+		const rawPayload = {
 			user_id:UserSub,
 			sex:value.gender,
 			country:value.country,
@@ -106,6 +88,9 @@ const SignUp = async (req, res) => {
 			source:value.source
 		}
 
+		const payload = Object.fromEntries(
+			Object.entries(rawPayload).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+		  );
 		try {
 			const newUser = await axios.post(`${process.env.MENTAL_HEALTH_LIVE_URL}/user/createuser`,payload);
 		} catch (error) {
@@ -126,10 +111,10 @@ const SignUp = async (req, res) => {
 };
 
 const ConfirmSignUp = async (req, res) => {
-	const { email, code } = req.body;
+	const { email, code, password } = req.body;
 
-	if (!email || !code) {
-		return res.status(400).json({ message: 'Username and confirmation code are required.' });
+	if (!email || !code || !password) {
+		return res.status(400).json({ message: 'Username ,Password and confirmation code are required.' });
 	}
 
 	const params = {
@@ -141,7 +126,6 @@ const ConfirmSignUp = async (req, res) => {
 
 	try {
 		await cognito.confirmSignUp(params).promise();
-		res.status(200).json({ message: 'User successfully verified.' });
 	} catch (error) {
 		console.error('Verification error:', error);
 
@@ -153,6 +137,38 @@ const ConfirmSignUp = async (req, res) => {
 
 		res.status(500).json({ error: error.message || 'Internal server error' });
 	}
+
+	try {
+		const param = {
+			AuthFlow: 'USER_PASSWORD_AUTH',
+			ClientId: process.env.COGNITO_CLIENT_ID,
+			AuthParameters: {
+				USERNAME: email,
+				PASSWORD: password,
+				SECRET_HASH: generateSecretHash(email, process.env.COGNITO_CLIENT_ID, process.env.COGNITO_CLIENT_SECRET),
+			},
+		};
+	
+		const authResult = await cognito.initiateAuth(param).promise();
+			res.status(200).json({
+				message: 'User verified and login successful.',
+				idToken: authResult.AuthenticationResult.IdToken,
+				accessToken: authResult.AuthenticationResult.AccessToken,
+				refreshToken: authResult.AuthenticationResult.RefreshToken,
+				expiresIn: authResult.AuthenticationResult.ExpiresIn,
+				tokenType: authResult.AuthenticationResult.TokenType,
+			});
+	} catch (error) {
+			console.error('SignIn error:', error);
+			if (error.code === 'NotAuthorizedException') {
+				return res.status(401).json({ message: 'Incorrect username or password.' });
+			} else if (error.code === 'UserNotConfirmedException') {
+				return res.status(403).json({ message: 'User not confirmed. Please verify your email.' });
+			}
+			res.status(500).json({ error: error.message || 'Internal server error' });
+		
+	}
+
 };
 
 const ResendVerificationCode = async (req, res) => {
@@ -397,5 +413,5 @@ module.exports = {
 	SignIn,
 	Logout,
 	UpdateUser,
-	GetUser
+	GetUser,
 };
