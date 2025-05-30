@@ -154,14 +154,16 @@ const ConfirmSignUp = async (req, res) => {
 		};
 	
 		const authResult = await cognito.initiateAuth(param).promise();
-			res.status(200).json({
-				message: 'User verified and login successful.',
+		res.status(200).json({
+			message: 'User verified and login successful.',
+			data: {
 				idToken: authResult.AuthenticationResult.IdToken,
 				accessToken: authResult.AuthenticationResult.AccessToken,
 				refreshToken: authResult.AuthenticationResult.RefreshToken,
 				expiresIn: authResult.AuthenticationResult.ExpiresIn,
 				tokenType: authResult.AuthenticationResult.TokenType,
-			});
+			}
+		});
 	} catch (error) {
 			console.error('SignIn error:', error);
 			if (error.code === 'NotAuthorizedException') {
@@ -226,11 +228,13 @@ const SignIn = async (req, res) => {
 		const authResult = await cognito.initiateAuth(params).promise();
 		res.status(200).json({
 			message: 'Login successful.',
-			idToken: authResult.AuthenticationResult.IdToken,
-			accessToken: authResult.AuthenticationResult.AccessToken,
-			refreshToken: authResult.AuthenticationResult.RefreshToken,
-			expiresIn: authResult.AuthenticationResult.ExpiresIn,
-			tokenType: authResult.AuthenticationResult.TokenType,
+			data: {
+				idToken: authResult.AuthenticationResult.IdToken,
+				accessToken: authResult.AuthenticationResult.AccessToken,
+				refreshToken: authResult.AuthenticationResult.RefreshToken,
+				expiresIn: authResult.AuthenticationResult.ExpiresIn,
+				tokenType: authResult.AuthenticationResult.TokenType,
+			}
 		});
 	} catch (error) {
 		console.error('SignIn error:', error);
@@ -395,8 +399,9 @@ const GetUser = async (req, res) => {
 		}
 
 		res.status(200).json({
-			...attributes,
-			profileUrl,
+            message:"User fetched successfully",
+			data:{...attributes,
+			profileUrl}
 		});
 	} catch (error) {
 		console.error('Get user error:', error);
@@ -434,11 +439,13 @@ const RefreshToken = async (req, res) => {
 
 		res.status(200).json({
 			message: 'Token refresh successful.',
-			idToken: authResult.AuthenticationResult.IdToken,
-			accessToken: authResult.AuthenticationResult.AccessToken,
-			refreshToken: authResult.AuthenticationResult.RefreshToken,
-			expiresIn: authResult.AuthenticationResult.ExpiresIn,
-			tokenType: authResult.AuthenticationResult.TokenType,
+			data: {
+				idToken: authResult.AuthenticationResult.IdToken,
+				accessToken: authResult.AuthenticationResult.AccessToken,
+				refreshToken: authResult.AuthenticationResult.RefreshToken,
+				expiresIn: authResult.AuthenticationResult.ExpiresIn,
+				tokenType: authResult.AuthenticationResult.TokenType,
+			}
 		});
 
 	} catch (error) {
