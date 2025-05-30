@@ -43,6 +43,10 @@ const userSchema = Joi.object({
 	source: Joi.string().required(),
   });
 
+const RefershToken = Joi.object({
+	refreshToken:Joi.string().required()
+}) 
+
 const SignUp = async (req, res) => {
 	try {
 		const { error, value } = userSchema.validate(req.body);
@@ -405,6 +409,52 @@ const GetUser = async (req, res) => {
 	}
 };
 
+const RefreshToken = async (req, res) => {
+
+	if (!req.body || Object.keys(req.body).length === 0) {
+		return res.status(400).json({ message: "Request body is missing" });
+	  }
+
+	const { error, value } = RefershToken.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+	try {
+		const params = {
+			AuthFlow: 'REFRESH_TOKEN_AUTH',
+			ClientId: process.env.COGNITO_CLIENT_ID,
+			AuthParameters: {
+				REFRESH_TOKEN: value.refreshToken,
+				SECRET_HASH: process.env.COGNITO_CLIENT_SECRET,
+			},
+		};
+
+		const authResult = await cognito.initiateAuth(params).promise();
+
+		res.status(200).json({
+			message: 'Token refresh successful.',
+			idToken: authResult.AuthenticationResult.IdToken,
+			accessToken: authResult.AuthenticationResult.AccessToken,
+			refreshToken: authResult.AuthenticationResult.RefreshToken,
+			expiresIn: authResult.AuthenticationResult.ExpiresIn,
+			tokenType: authResult.AuthenticationResult.TokenType,
+		});
+
+	} catch (error) {
+		console.error('RefreshToken error:', error);
+
+		if (error.code === 'NotAuthorizedException') {
+			return res.status(401).json({ message: 'Invalid refresh token or token has expired.' });
+		} else if (error.code === 'UserNotFoundException') {
+			return res.status(404).json({ message: 'User not found.' });
+		} else if (error.code === 'TokenRefreshException') {
+			return res.status(401).json({ message: 'Token refresh failed. Please login again.' });
+		}
+		res.status(500).json({ error: error.message || 'Internal server error' });
+	}
+};
+
 
 module.exports = {
 	SignUp,
@@ -414,4 +464,5 @@ module.exports = {
 	Logout,
 	UpdateUser,
 	GetUser,
+	RefreshToken
 };
