@@ -362,7 +362,7 @@ const UpdateUser = async (req, res) => {
 
 const GetUser = async (req, res) => {
 	try {
-		const { accessToken } = req.body;
+		const accessToken = req.headers['authorization']?.split(' ')[1];
 
 		if (!accessToken) {
 			return res.status(400).json({ message: 'Access token is required.' });
