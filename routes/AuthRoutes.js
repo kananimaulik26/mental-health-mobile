@@ -12,6 +12,8 @@ router.post('/logout',AuthController.Logout);
 router.post('/update-user',upload.single('profile'),AuthController.UpdateUser);
 router.get('/get-user',AuthController.GetUser);
 router.get('/get-token',AuthController.RefreshToken);
+router.get('/google/callback',AuthController.googleCallback);
+
 
 
 

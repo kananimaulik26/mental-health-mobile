@@ -53,23 +53,27 @@ const SignUp = async (req, res) => {
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
+	const toAttr = (name, val) => ({
+		Name: name,
+		Value: val !== undefined && val !== null && val !== '' ? val : 'N/A'
+	});
+	
+	const attributes = [
+		toAttr('gender', value.gender),
+		toAttr('given_name', value.firstname),
+		toAttr('family_name', value.lastname),
+		toAttr('custom:country', value.country),
+		toAttr('custom:city', value.city),
+		toAttr('custom:school', value.school),
+		toAttr('custom:mode', value.mode),
+		toAttr('custom:district', value.district),
+		toAttr('custom:age', value.age),
+		toAttr('custom:source', value.source),
+		toAttr('custom:user_type', value.user_type)
+	];
+	
 
-	const attributes = [];
-
-	    if (value.gender) attributes.push({ Name: 'gender', Value: value.gender });
-	    if (value.firstname) attributes.push({ Name: 'given_name', Value: value.firstname });
-	    if (value.lastname) attributes.push({ Name: 'family_name', Value: value.lastname });
-		
-
-		// Custom fields
-		if (value.country) attributes.push({ Name: 'custom:country', Value: value.country });
-		if (value.city) attributes.push({ Name: 'custom:city', Value: value.city });
-		if (value.school) attributes.push({ Name: 'custom:school', Value: value.school });
-		if (value.mode) attributes.push({ Name: 'custom:mode', Value: value.mode });
-		if (value.district) attributes.push({ Name: 'custom:district', Value: value.district });
-		if (value.age) attributes.push({ Name: 'custom:age', Value: value.age });
-		if (value.source) attributes.push({ Name: 'custom:source', Value: value.source });
-		if(value.user_type) attributes.push({Name:'custom:user_type', Value: value.user_type})
+	console.log('Attributes:', attributes);
 
 		const params = {
 			ClientId: process.env.COGNITO_CLIENT_ID,
@@ -398,10 +402,36 @@ const GetUser = async (req, res) => {
 			}
 		}
 
+		const cleanedAttributes = {
+			firstname: attributes['given_name'],
+			lastname: attributes['family_name'],
+			email: attributes['email'],
+			email_verified: attributes['email_verified'],
+			gender: attributes['gender'],
+			sub: attributes['sub'],
+		};
+
+		Object.keys(attributes).forEach(key => {
+			if (key.startsWith('custom:')) {
+				const newKey = key.replace('custom:', '');
+				cleanedAttributes[newKey] = attributes[key];
+			}
+		});
+
+		// Normalize values: replace "N/A", null, or undefined with empty string
+		const normalizedData = {};
+		for (const [key, value] of Object.entries(cleanedAttributes)) {
+			normalizedData[key] = value === 'N/A' || value === undefined || value === null ? '' : value;
+		}
+
+		console.log('Normalized User fetched:', normalizedData);
+
 		res.status(200).json({
-            message:"User fetched successfully",
-			data:{...attributes,
-			profileUrl}
+			message: "User fetched successfully",
+			data: {
+				...normalizedData,
+				profileUrl: profileUrl ?? ''
+			}
 		});
 	} catch (error) {
 		console.error('Get user error:', error);
@@ -462,6 +492,43 @@ const RefreshToken = async (req, res) => {
 	}
 };
 
+const googleCallback = async (req, res) => {
+	const { code } = req.query;
+  
+	if (!code) {
+	  return res.status(400).json({ message: 'Authorization code is missing' });
+	}
+  
+	try {
+	  const params = new URLSearchParams();
+	  params.append('grant_type', 'authorization_code');
+	  params.append('client_id', process.env.COGNITO_CLIENT_ID);
+	  params.append('client_secret', process.env.COGNITO_CLIENT_SECRET);
+	  params.append('code', code);
+	  params.append('redirect_uri', process.env.COGNITO_REDIRECT_URI);
+  
+	  const tokenResponse = await axios.post(
+		`${process.env.COGNITO_DOMAIN}/oauth2/token`,
+		params.toString(),
+		{
+		  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		}
+	  );
+  
+	  const { id_token, access_token, refresh_token } = tokenResponse.data;
+  
+	  const decoded = jwt.decode(id_token);
+  
+	  res.status(200).json({
+		message: 'Google Sign-In successful',
+		tokens: { id_token, access_token, refresh_token },
+		user: decoded,
+	  });
+	} catch (err) {
+	  console.error('Google callback error:', err?.response?.data || err.message);
+	  res.status(500).json({ message: 'Failed to sign in with Google' });
+	}
+  };
 
 module.exports = {
 	SignUp,
@@ -471,5 +538,6 @@ module.exports = {
 	Logout,
 	UpdateUser,
 	GetUser,
-	RefreshToken
+	RefreshToken,
+	googleCallback
 };
