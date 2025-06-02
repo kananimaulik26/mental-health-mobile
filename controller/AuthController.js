@@ -279,8 +279,11 @@ const Logout = async (req, res) => {
 
 const UpdateUser = async (req, res) => {
 	try {
+		const accessToken = req.headers['authorization']?.split(' ')[1];
+		if (!accessToken) {
+			return res.status(400).json({ message: 'Access token is required.' });
+		}
 	    const {
-			accessToken,
 			gender,
 			country,
 			city,
@@ -293,11 +296,6 @@ const UpdateUser = async (req, res) => {
 		} = req.body;
 
 		const profileImage = req.file;
-
-		if (!accessToken) {
-			return res.status(400).json({ message: 'Access token is required.' });
-		}
-
 		const attributes = [];
 
 		if (profileImage) {
