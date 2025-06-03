@@ -11,7 +11,7 @@ router.post('/resend-code',AuthController.ResendVerificationCode);
 router.post('/logout',AuthController.Logout);
 router.post('/update-user',upload.single('profile'),AuthController.UpdateUser);
 router.get('/get-user',AuthController.GetUser);
-router.get('/get-token',AuthController.RefreshToken);
+router.post('/get-token',AuthController.RefreshToken);
 router.get('/google/callback',AuthController.googleCallback);
 
 
