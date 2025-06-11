@@ -473,6 +473,8 @@ const RefreshToken = async (req, res) => {
 		};
 
 		const authResult = await cognito.initiateAuth(params).promise();
+		const user = await cognito.getUser({ AccessToken: authResult.AuthenticationResult.AccessToken }).promise();
+		const token = jwt.sign({userId: user?.Username},process.env.JWT_SECRET_KEY,{expiresIn:'1h'});
 
 		res.status(200).json({
 			message: 'Token refresh successful.',
@@ -482,6 +484,7 @@ const RefreshToken = async (req, res) => {
 				refreshToken: authResult.AuthenticationResult.RefreshToken,
 				expiresIn: authResult.AuthenticationResult.ExpiresIn,
 				tokenType: authResult.AuthenticationResult.TokenType,
+				jwtToken: token
 			}
 		});
 
