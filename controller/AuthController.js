@@ -28,10 +28,10 @@ const s3Client = new S3Client({
 const cognito = new AWS.CognitoIdentityServiceProvider();
 
 const userSchema = Joi.object({
-	email:Joi.string().email().required(),
-	password:Joi.string().required(),
-	firstname:Joi.string().required(),
-	lastname:Joi.string().required(),
+	email: Joi.string().email().required(),
+	password: Joi.string().required(),
+	firstname: Joi.string().required(),
+	lastname: Joi.string().required(),
 	gender: Joi.string().valid("male", "female", "other"),
 	country: Joi.string(),
 	city: Joi.string(),
@@ -41,69 +41,63 @@ const userSchema = Joi.object({
 	district: Joi.string(),
 	age: Joi.number().integer().min(0),
 	source: Joi.string().required(),
-  });
+});
 
 const RefershToken = Joi.object({
-	refreshToken:Joi.string().required()
-}) 
+	refreshToken: Joi.string().required()
+})
 
 const SignUp = async (req, res) => {
 	try {
 		const { error, value } = userSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ message: error.details[0].message });
-    }
-	const toAttr = (name, val) => ({
-		Name: name,
-		Value: val !== undefined && val !== null && val !== '' ? val : 'N/A'
-	});
-	
-	const attributes = [
-		toAttr('gender', value.gender),
-		toAttr('given_name', value.firstname),
-		toAttr('family_name', value.lastname),
-		toAttr('custom:country', value.country),
-		toAttr('custom:city', value.city),
-		toAttr('custom:school', value.school),
-		toAttr('custom:mode', value.mode),
-		toAttr('custom:district', value.district),
-		toAttr('custom:age', value.age),
-		toAttr('custom:source', value.source),
-		toAttr('custom:user_type', value.user_type)
-	];
-	
+		if (error) {
+			return res.status(400).json({ message: error.details[0].message });
+		}
+		const toAttr = (name, val) => ({
+			Name: name,
+			Value: val !== undefined && val !== null && val !== '' ? val : 'N/A'
+		});
 
-	console.log('Attributes:', attributes);
+		const attributes = [
+			toAttr('gender', value.gender),
+			toAttr('given_name', value.firstname),
+			toAttr('family_name', value.lastname),
+			toAttr('custom:country', value.country),
+			toAttr('custom:city', value.city),
+			toAttr('custom:school', value.school),
+			toAttr('custom:mode', value.mode),
+			toAttr('custom:district', value.district),
+			toAttr('custom:age', value.age),
+			toAttr('custom:source', value.source),
+			toAttr('custom:user_type', value.user_type)
+		];
 
 		const params = {
 			ClientId: process.env.COGNITO_CLIENT_ID,
 			Username: value.email,
 			Password: value.password,
 			SecretHash: generateSecretHash(value.email, process.env.COGNITO_CLIENT_ID, process.env.COGNITO_CLIENT_SECRET),
-			UserAttributes:attributes
+			UserAttributes: attributes
 		};
 		const { UserSub } = await cognito.signUp(params).promise();
 		const rawPayload = {
-			user_id:UserSub,
-			sex:value.gender,
-			country:value.country,
-			city:value.city,
-			user_type:value.user_type,
-			school:value.school,
-			mode:value.mode,
-			district:value.district,
-			age:value.age,
-			source:value.source
+			user_id: UserSub,
+			sex: value.gender,
+			country: value.country,
+			city: value.city,
+			user_type: value.user_type,
+			school: value.school,
+			mode: value.mode,
+			district: value.district,
+			age: value.age,
+			source: value.source
 		}
 
 		const payload = Object.fromEntries(
 			Object.entries(rawPayload).filter(([_, v]) => v !== undefined && v !== null && v !== '')
-		  );
-		try {
-			const newUser = await axios.post(`${process.env.MENTAL_HEALTH_LIVE_URL}/user/createuser`,payload);
-		} catch (error) {
-			console.log("Error to create user in mental health:",error)
-		}
+		);
+
+		await axios.post(`${process.env.MENTAL_HEALTH_LIVE_URL}/user/createuser`, payload);
 
 		res.status(200).json({ message: 'Signup successful. Verification code sent to email.' });
 	} catch (error) {
@@ -156,10 +150,10 @@ const ConfirmSignUp = async (req, res) => {
 				SECRET_HASH: generateSecretHash(email, process.env.COGNITO_CLIENT_ID, process.env.COGNITO_CLIENT_SECRET),
 			},
 		};
-	
+
 		const authResult = await cognito.initiateAuth(param).promise();
 		const user = await cognito.getUser({ AccessToken: authResult.AuthenticationResult.AccessToken }).promise();
-		const token = jwt.sign({userId: user?.Username},process.env.JWT_SECRET_KEY,{expiresIn:'1h'});
+		const token = jwt.sign({ userId: user?.Username }, process.env.JWT_SECRET_KEY, { expiresIn: '1h' });
 		res.status(200).json({
 			message: 'User verified and login successful.',
 			data: {
@@ -172,14 +166,14 @@ const ConfirmSignUp = async (req, res) => {
 			}
 		});
 	} catch (error) {
-			console.error('SignIn error:', error);
-			if (error.code === 'NotAuthorizedException') {
-				return res.status(401).json({ message: 'Incorrect username or password.' });
-			} else if (error.code === 'UserNotConfirmedException') {
-				return res.status(403).json({ message: 'User not confirmed. Please verify your email.' });
-			}
-			res.status(500).json({ error: error.message || 'Internal server error' });
-		
+		console.error('SignIn error:', error);
+		if (error.code === 'NotAuthorizedException') {
+			return res.status(401).json({ message: 'Incorrect username or password.' });
+		} else if (error.code === 'UserNotConfirmedException') {
+			return res.status(403).json({ message: 'User not confirmed. Please verify your email.' });
+		}
+		res.status(500).json({ error: error.message || 'Internal server error' });
+
 	}
 
 };
@@ -232,11 +226,11 @@ const SignIn = async (req, res) => {
 			},
 		};
 
-		
+
 		const authResult = await cognito.initiateAuth(params).promise();
 		const user = await cognito.getUser({ AccessToken: authResult.AuthenticationResult.AccessToken }).promise();
-		const token = jwt.sign({userId: user?.Username},process.env.JWT_SECRET_KEY,{expiresIn:'1h'});
-		
+		const token = jwt.sign({ userId: user?.Username }, process.env.JWT_SECRET_KEY, { expiresIn: '1h' });
+
 
 		res.status(200).json({
 			message: 'Login successful.',
@@ -292,7 +286,7 @@ const UpdateUser = async (req, res) => {
 		if (!accessToken) {
 			return res.status(400).json({ message: 'Access token is required.' });
 		}
-	    const {
+		const {
 			gender,
 			country,
 			city,
@@ -301,7 +295,12 @@ const UpdateUser = async (req, res) => {
 			mode,
 			district,
 			age,
-			source
+			source,
+			firstName,
+			lastname,
+			nickname,
+			phone_number,
+			language,
 		} = req.body;
 
 		const profileImage = req.file;
@@ -334,46 +333,63 @@ const UpdateUser = async (req, res) => {
 		if (district) attributes.push({ Name: 'custom:district', Value: district });
 		if (age) attributes.push({ Name: 'custom:age', Value: age });
 		if (source) attributes.push({ Name: 'custom:source', Value: source });
-		if(user_type) attributes.push({Name:'custom:user_type', Value:user_type})
+		if (user_type) attributes.push({ Name: 'custom:user_type', Value: user_type })
+		if (firstName) attributes.push({ Name: 'given_name', Value: firstName });
+		if (lastname) attributes.push({ Name: 'family_name', Value: lastname });
+		if (nickname) attributes.push({ Name: 'nickname', Value: nickname });
+		if (language) attributes.push({ Name: 'custom:language', Value: language });
+		if (phone_number) attributes.push({ Name: 'phone_number', Value: phone_number });
+		console.log("attributes: ", attributes);
+
 
 		const params = {
 			AccessToken: accessToken,
 			UserAttributes: attributes
 		};
+		await cognito.updateUserAttributes(params).promise();
 
-		 await cognito.updateUserAttributes(params).promise();
+		const { Username } = await cognito.getUser({ AccessToken: accessToken }).promise();
 
-		 const { Username } = await cognito.getUser({ AccessToken: accessToken }).promise();
-		 const payload = {
-			sex:gender,
-			country:country,
-			city:city,
-			user_type:user_type,
-			school:school,
-			mode:mode,
-			district:district,
-			age:age,
-			source:source
-		 }
-		 const token = jwt.sign({userId:Username},process.env.JWT_SECRET_KEY,{expiresIn:'1h'});
+		const payload = attributes.reduce((acc, { Name, Value }) => {
+			acc[Name] = Value;
+			return acc;
+		}, {});
 
-		 try {
-			const UpdateUser = await axios.post(`${process.env.MENTAL_HEALTH_LIVE_URL}/user/editUser/${Username}`,payload,{
-				headers:{
-					Authorization: `Bearer ${token}`
-				}
-			});
-		} catch (error) {
-			console.log("Error to create user in mental health:",error)
-		}
+		const token = jwt.sign({ userId: Username }, process.env.JWT_SECRET_KEY, { expiresIn: '1h' });
 
+		await axios.post(`${process.env.MENTAL_HEALTH_LIVE_URL}/user/editUser/${Username}`, payload, {
+			headers: {
+				Authorization: `Bearer ${token}`
+			}
+		});
 		res.status(200).json({ message: 'User attributes updated successfully.' });
 	} catch (error) {
-		console.error('Update user error:', error);
+		// console.error('Update user error:', error);
 		res.status(500).json({ error: error.message || 'Internal server error' });
 	}
 };
 
+const UpdatePassword = async (req, res) => {
+	try {
+		const { accessToken, currentPassword, newPassword } = req.body;
+
+		if (!accessToken || !currentPassword || !newPassword) {
+			return res.status(400).json({ error: 'Missing required fields.' });
+		}
+
+		const params = {
+			AccessToken: accessToken,
+			PreviousPassword: currentPassword,
+			ProposedPassword: newPassword,
+		};
+
+		await cognito.changePassword(params).promise();
+		res.status(200).json({ message: 'Password changed successfully.' });
+	} catch (error) {
+		console.error('Update password error:', error);
+		res.status(500).json({ error: error.message || 'Internal server error' });
+	}
+}
 
 const GetUser = async (req, res) => {
 	try {
@@ -408,7 +424,7 @@ const GetUser = async (req, res) => {
 				profileUrl = null;
 			}
 		}
-
+		console.log(attributes)
 		const cleanedAttributes = {
 			firstname: attributes['given_name'],
 			lastname: attributes['family_name'],
@@ -430,8 +446,6 @@ const GetUser = async (req, res) => {
 		for (const [key, value] of Object.entries(cleanedAttributes)) {
 			normalizedData[key] = value === 'N/A' || value === undefined || value === null ? '' : value;
 		}
-
-		console.log('Normalized User fetched:', normalizedData);
 
 		res.status(200).json({
 			message: "User fetched successfully",
@@ -455,12 +469,12 @@ const RefreshToken = async (req, res) => {
 
 	if (!req.body || Object.keys(req.body).length === 0) {
 		return res.status(400).json({ message: "Request body is missing" });
-	  }
+	}
 
 	const { error, value } = RefershToken.validate(req.body);
-    if (error) {
-      return res.status(400).json({ message: error.details[0].message });
-    }
+	if (error) {
+		return res.status(400).json({ message: error.details[0].message });
+	}
 
 	try {
 		const params = {
@@ -474,7 +488,7 @@ const RefreshToken = async (req, res) => {
 
 		const authResult = await cognito.initiateAuth(params).promise();
 		const user = await cognito.getUser({ AccessToken: authResult.AuthenticationResult.AccessToken }).promise();
-		const token = jwt.sign({userId: user?.Username},process.env.JWT_SECRET_KEY,{expiresIn:'1h'});
+		const token = jwt.sign({ userId: user?.Username }, process.env.JWT_SECRET_KEY, { expiresIn: '1h' });
 
 		res.status(200).json({
 			message: 'Token refresh successful.',
@@ -504,41 +518,74 @@ const RefreshToken = async (req, res) => {
 
 const googleCallback = async (req, res) => {
 	const { code } = req.query;
-  
+
 	if (!code) {
-	  return res.status(400).json({ message: 'Authorization code is missing' });
+		return res.status(400).json({ message: 'Authorization code is missing' });
 	}
-  
+
 	try {
-	  const params = new URLSearchParams();
-	  params.append('grant_type', 'authorization_code');
-	  params.append('client_id', process.env.COGNITO_CLIENT_ID);
-	  params.append('client_secret', process.env.COGNITO_CLIENT_SECRET);
-	  params.append('code', code);
-	  params.append('redirect_uri', process.env.COGNITO_REDIRECT_URI);
-  
-	  const tokenResponse = await axios.post(
-		`${process.env.COGNITO_DOMAIN}/oauth2/token`,
-		params.toString(),
-		{
-		  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-		}
-	  );
-  
-	  const { id_token, access_token, refresh_token } = tokenResponse.data;
-  
-	  const decoded = jwt.decode(id_token);
-  
-	  res.status(200).json({
-		message: 'Google Sign-In successful',
-		tokens: { id_token, access_token, refresh_token },
-		user: decoded,
-	  });
+		const params = new URLSearchParams();
+		params.append('grant_type', 'authorization_code');
+		params.append('client_id', process.env.COGNITO_CLIENT_ID);
+		params.append('client_secret', process.env.COGNITO_CLIENT_SECRET);
+		params.append('code', code);
+		params.append('redirect_uri', process.env.COGNITO_REDIRECT_URI);
+
+		const tokenResponse = await axios.post(
+			`${process.env.COGNITO_DOMAIN}/oauth2/token`,
+			params.toString(),
+			{
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			}
+		);
+
+		const { id_token, access_token, refresh_token } = tokenResponse.data;
+
+		const decoded = jwt.decode(id_token);
+
+		res.status(200).json({
+			message: 'Google Sign-In successful',
+			tokens: { id_token, access_token, refresh_token },
+			user: decoded,
+		});
 	} catch (err) {
-	  console.error('Google callback error:', err?.response?.data || err.message);
-	  res.status(500).json({ message: 'Failed to sign in with Google' });
+		console.error('Google callback error:', err?.response?.data || err.message);
+		res.status(500).json({ message: 'Failed to sign in with Google' });
 	}
-  };
+};
+
+
+const LoginActivity = async (req, res) => {
+	try {
+
+		const { userId, type, location, platform, time } = req.body;
+
+		if (!userId || !type || !location || !platform || !time) {
+			return res.status(400).json({
+				message: 'All fields (userId, type, location, platform, time) are required.'
+			});
+		}
+
+		const activity = new LoginActivity({
+			userId,
+			type,
+			location,
+			platform,
+			time
+		});
+
+		await activity.save();
+		res.status(201).json({ message: 'Login activity recorded successfully.' });
+	} catch (error) {
+		console.error('Get user error:', error);
+
+		if (error.code === 'NotAuthorizedException') {
+			return res.status(401).json({ message: 'Invalid or expired access token.' });
+		}
+
+		res.status(500).json({ error: error.message || 'Internal server error' });
+	}
+}
 
 module.exports = {
 	SignUp,
@@ -547,7 +594,9 @@ module.exports = {
 	SignIn,
 	Logout,
 	UpdateUser,
+	UpdatePassword,
 	GetUser,
 	RefreshToken,
-	googleCallback
+	googleCallback,
+	LoginActivity
 };
