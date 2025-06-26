@@ -15,6 +15,7 @@ router.post('/get-token', AuthController.RefreshToken);
 router.get('/google/callback', AuthController.googleCallback);
 router.put('/update-password', AuthController.UpdatePassword);
 router.post('/login-activity', AuthController.LoginActivity);
+router.post('/forgot-password', AuthController.ForgotPassword);
 
 
 module.exports = router;

@@ -400,7 +400,6 @@ const GetUser = async (req, res) => {
 		}
 
 		const user = await cognito.getUser({ AccessToken: accessToken }).promise();
-
 		const attributes = {};
 		user.UserAttributes.forEach(attr => {
 			attributes[attr.Name] = attr.Value;
@@ -432,6 +431,18 @@ const GetUser = async (req, res) => {
 			email_verified: attributes['email_verified'],
 			gender: attributes['gender'],
 			sub: attributes['sub'],
+			nickname: attributes['nickname'],
+			phone_number: attributes['phone_number'],
+			language: attributes['custom:language'],
+			country: attributes['custom:country'],
+			city: attributes['custom:city'],
+			school: attributes['custom:school'],
+			mode: attributes['custom:mode'],
+			district: attributes['custom:district'],
+			age: attributes['custom:age'],
+			source: attributes['custom:source'],
+			user_type: attributes['custom:user_type'],
+
 		};
 
 		Object.keys(attributes).forEach(key => {
@@ -587,6 +598,24 @@ const LoginActivity = async (req, res) => {
 	}
 }
 
+
+const ForgotPassword = async (req, res) => {
+	try {
+
+
+
+	} catch (error) {
+		console.error('Get user error:', error);
+
+		if (error.code === 'NotAuthorizedException') {
+			return res.status(401).json({ message: 'Invalid or expired access token.' });
+		}
+
+		res.status(500).json({ error: error.message || 'Internal server error' });
+
+	}
+}
+
 module.exports = {
 	SignUp,
 	ConfirmSignUp,
@@ -598,5 +627,6 @@ module.exports = {
 	GetUser,
 	RefreshToken,
 	googleCallback,
-	LoginActivity
+	LoginActivity,
+	ForgotPassword,
 };
